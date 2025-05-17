@@ -5,25 +5,20 @@ import os
 app = FastAPI()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-AUTHORIZED_USER_ID = int(os.getenv("TELEGRAM_USER_ID"))
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-# URL do Hugging Face Space que vai gerar a resposta
-HUGGINGFACE_SPACE_URL = os.getenv("HUGGINGFACE_SPACE_URL")  # ex: "https://your-username-your-space-name.hf.space"
+HF_API_URL = "https://api-inference.huggingface.co/models/gpt2"
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+HF_HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
 
-async def generate_response(prompt: str) -> str:
+async def query_huggingface(prompt: str):
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                f"{HUGGINGFACE_SPACE_URL}/generate",
-                json={"prompt": prompt}
-            )
-            if response.status_code == 200:
-                return response.json().get("response", "Desculpe, não entendi.")
-            else:
-                return "Erro ao gerar resposta via IA."
-        except Exception as e:
-            return "Erro na comunicação com o servidor de IA."
+        response = await client.post(HF_API_URL, headers=HF_HEADERS, json={"inputs": prompt})
+        data = response.json()
+        if isinstance(data, list):
+            return data[0]["generated_text"]
+        else:
+            return "Desculpe, não consegui gerar uma resposta."
 
 async def send_message(chat_id: int, text: str):
     async with httpx.AsyncClient() as client:
@@ -35,7 +30,6 @@ async def send_message(chat_id: int, text: str):
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.json()
-
     if "message" not in data:
         return {"ok": True}
 
@@ -43,16 +37,10 @@ async def telegram_webhook(request: Request):
     user_id = message["from"]["id"]
     user_msg = message.get("text", "")
 
-    if user_id != AUTHORIZED_USER_ID:
-        await send_message(user_id, "Desculpe, você não está autorizado a usar a Alice.")
-        return {"ok": True}
+    # Envia o prompt para o Hugging Face
+    response_text = await query_huggingface(user_msg)
 
-    prompt = f"User: {user_msg}\nAlice:"
-    bot_resp = await generate_response(prompt)
+    # Envia a resposta para o Telegram
+    await send_message(user_id, response_text)
 
-    await send_message(user_id, bot_resp)
     return {"ok": True}
-
-@app.get("/")
-def root():
-    return {"message": "Alice backend está rodando no Render!"}
