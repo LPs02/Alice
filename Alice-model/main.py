@@ -11,6 +11,24 @@ AUTHORIZED_USER_ID = int(os.getenv("5322238901"))  # seu user id no Telegram (in
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+import torch
+
+# Carregar modelo e tokenizer (no início do main.py ou outro módulo)
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+model = GPT2LMHeadModel.from_pretrained("gpt2")
+
+def generate_response(prompt: str, max_length: int = 100) -> str:
+    inputs = tokenizer.encode(prompt, return_tensors="pt")
+    outputs = model.generate(inputs, max_length=max_length, pad_token_id=tokenizer.eos_token_id)
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # Opcional: limpar resposta (retirar o prompt da saída, se necessário)
+    if response.startswith(prompt):
+        response = response[len(prompt):].strip()
+    
+    return response
+
 # Memória curta: dicionário user_id -> lista de mensagens (string)
 # Guarda só as últimas 10 mensagens (5 trocas)
 memory_short = {}
@@ -50,16 +68,16 @@ async def send_message(chat_id: int, text: str):
 
 # Rota para webhook do Telegram
 @app.post("/webhook")
-async def telegram_webhook(update: TelegramUpdate):
-    if not update.message:
-        return {"ok": True}
+async def webhook(update: dict):
+    message = update['message']['text']
+    chat_id = update['message']['chat']['id']
 
-    user_id = update.message["from"]["id"]
-    user_msg = update.message.get("text", "")
+    if str(chat_id) != str(AUTHORIZED_USER_ID):
+        return {"status": "unauthorized"}
 
-    if user_id != AUTHORIZED_USER_ID:
-        # Ignora mensagens de usuários não autorizados
-        return {"ok": True}
+    response = generate_response(message)
+    send_message(chat_id, response)
+    return {"status": "ok"}
 
     # Aqui você colocaria a chamada ao modelo de IA (GPT2, etc)
     # Por enquanto, responde ecoando a mensagem + memória curta
