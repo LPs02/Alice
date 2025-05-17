@@ -2,5 +2,5 @@ transformers
 torch
 uvicorn
 python-telegram-bot
-request
+requests
 httpx
