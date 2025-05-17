@@ -3,3 +3,4 @@ torch
 uvicorn
 python-telegram-bot
 request
+httpx
