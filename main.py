@@ -1,100 +1,58 @@
-from fastapi import FastAPI, Request, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, Request
 import httpx
 import os
 
 app = FastAPI()
 
-# CONFIGURAÇÕES - coloque suas variáveis de ambiente
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # seu token do bot Telegram
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 AUTHORIZED_USER_ID = int(os.getenv("TELEGRAM_USER_ID"))
-""
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
-import torch
+# URL do Hugging Face Space que vai gerar a resposta
+HUGGINGFACE_SPACE_URL = os.getenv("HUGGINGFACE_SPACE_URL")  # ex: "https://your-username-your-space-name.hf.space"
 
-# Carregar modelo e tokenizer (no início do main.py ou outro módulo)
-tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-model = GPT2LMHeadModel.from_pretrained("gpt2")
-
-def generate_response(prompt: str, max_length: int = 100) -> str:
-    inputs = tokenizer.encode(prompt, return_tensors="pt")
-    outputs = model.generate(inputs, max_length=max_length, pad_token_id=tokenizer.eos_token_id)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
-    # Opcional: limpar resposta (retirar o prompt da saída, se necessário)
-    if response.startswith(prompt):
-        response = response[len(prompt):].strip()
-    
-    return response
-
-# Memória curta: dicionário user_id -> lista de mensagens (string)
-# Guarda só as últimas 10 mensagens (5 trocas)
-memory_short = {}
-
-# Para salvar as conversas num arquivo (append)
-CONVERSATION_LOG_FILE = "conversation_log.txt"
-
-class TelegramUpdate(BaseModel):
-    update_id: int
-    message: dict = None
-
-def update_memory(user_id: int, user_msg: str, bot_resp: str, max_len=10):
-    history = memory_short.get(user_id, [])
-    history.append(f"User: {user_msg}")
-    history.append(f"Alice: {bot_resp}")
-    # mantém só as últimas max_len mensagens
-    if len(history) > max_len * 2:
-        history = history[-max_len*2 :]
-    memory_short[user_id] = history
-
-def get_prompt(user_id: int):
-    history = memory_short.get(user_id, [])
-    return "\n".join(history) + "\nAlice: "
-
-def save_conversation(user_id: int, user_msg: str, bot_resp: str):
-    with open(CONVERSATION_LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"User({user_id}): {user_msg}\n")
-        f.write(f"Alice: {bot_resp}\n\n")
+async def generate_response(prompt: str) -> str:
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{HUGGINGFACE_SPACE_URL}/generate",
+                json={"prompt": prompt}
+            )
+            if response.status_code == 200:
+                return response.json().get("response", "Desculpe, não entendi.")
+            else:
+                return "Erro ao gerar resposta via IA."
+        except Exception as e:
+            return "Erro na comunicação com o servidor de IA."
 
 async def send_message(chat_id: int, text: str):
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
+        await client.post(
             TELEGRAM_API_URL,
             json={"chat_id": chat_id, "text": text}
         )
-        return resp
 
-# Rota para webhook do Telegram
 @app.post("/webhook")
-async def webhook(update: dict):
-    message = update['message']['text']
-    chat_id = update['message']['chat']['id']
+async def telegram_webhook(request: Request):
+    data = await request.json()
 
-    if str(chat_id) != str(AUTHORIZED_USER_ID):
-        return {"status": "unauthorized"}
+    if "message" not in data:
+        return {"ok": True}
 
-    response = generate_response(message)
-    send_message(chat_id, response)
-    return {"status": "ok"}
+    message = data["message"]
+    user_id = message["from"]["id"]
+    user_msg = message.get("text", "")
 
-    # Aqui você colocaria a chamada ao modelo de IA (GPT2, etc)
-    # Por enquanto, responde ecoando a mensagem + memória curta
-    prompt = get_prompt(user_id) + user_msg + "\nAlice: "
-    # Exemplo simples: responde com "Você disse: {mensagem}"
-    bot_resp = f"Você disse: {user_msg}"
+    if user_id != AUTHORIZED_USER_ID:
+        await send_message(user_id, "Desculpe, você não está autorizado a usar a Alice.")
+        return {"ok": True}
 
-    # Atualiza a memória curta
-    update_memory(user_id, user_msg, bot_resp)
-    # Salva no log
-    save_conversation(user_id, user_msg, bot_resp)
-    # Envia a resposta para o Telegram
+    prompt = f"User: {user_msg}\nAlice:"
+    bot_resp = await generate_response(prompt)
+
     await send_message(user_id, bot_resp)
-
     return {"ok": True}
 
-# Rota teste simples
 @app.get("/")
-async def root():
-    return {"message": "Alice bot está no ar!"}
+def root():
+    return {"message": "Alice backend está rodando no Render!"}
