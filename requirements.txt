@@ -1,4 +1,4 @@
-transfomers
+transformers
 torch
 uvicorn
 python-telegram-bot
