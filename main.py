@@ -7,8 +7,8 @@ app = FastAPI()
 
 # CONFIGURAÇÕES - coloque suas variáveis de ambiente
 TELEGRAM_BOT_TOKEN = os.getenv("8129764087:AAFXieX5qd1-pnsafwKcFuFxR08OGh_vLB8")  # seu token do bot Telegram
-AUTHORIZED_USER_ID = int(os.getenv("5322238901"))  # seu user id no Telegram (int)
-
+AUTHORIZED_USER_ID = int(os.getenv("TELEGRAM_USER_ID"))
+""
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
