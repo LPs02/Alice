@@ -7,7 +7,7 @@ app = FastAPI()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-HF_API_URL = "https://huggingface.co/Lps02/Alice_finetuned"
+HF_API_URL = "https://api-inference.huggingface.co/models/Lps02/Alice_finetuned"
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 HF_HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
 
@@ -15,10 +15,13 @@ async def query_huggingface(prompt: str):
     async with httpx.AsyncClient() as client:
         response = await client.post(HF_API_URL, headers=HF_HEADERS, json={"inputs": prompt})
         data = response.json()
-        if isinstance(data, list):
+        # A resposta pode ser uma lista com o texto gerado
+        if isinstance(data, list) and "generated_text" in data[0]:
             return data[0]["generated_text"]
-        else:
-            return "Desculpe, não consegui gerar uma resposta."
+        # Se der erro, pode vir com um campo 'error'
+        if isinstance(data, dict) and "error" in data:
+            return "Desculpe, estou temporariamente indisponível."
+        return "Não consegui gerar uma resposta."
 
 async def send_message(chat_id: int, text: str):
     async with httpx.AsyncClient() as client:
@@ -31,7 +34,6 @@ async def send_message(chat_id: int, text: str):
 async def telegram_webhook(request: Request):
     data = await request.json()
     
-    # Exemplo básico para extrair a mensagem e o user_id de forma segura
     message = data.get("message") or data.get("edited_message")
     if not message:
         return {"error": "No message found"}
@@ -40,12 +42,12 @@ async def telegram_webhook(request: Request):
     if not user_from:
         return {"error": "No 'from' field in message"}
     
-    user_id = user_from.get("id")
-    if not user_id:
-        return {"error": "No user ID found"}
-    
-    # Aqui você pode seguir com a lógica para responder ou processar a mensagem
+    chat_id = message["chat"]["id"]
     text = message.get("text", "")
-    # ... seu processamento e resposta
+    if not text:
+        return {"status": "ok"}  # mensagem sem texto
+    
+    resposta = await query_huggingface(text)
+    await send_message(chat_id, resposta)
 
     return {"status": "ok"}
