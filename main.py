@@ -30,17 +30,22 @@ async def send_message(chat_id: int, text: str):
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.json()
-    if "message" not in data:
-        return {"ok": True}
+    
+    # Exemplo básico para extrair a mensagem e o user_id de forma segura
+    message = data.get("message") or data.get("edited_message")
+    if not message:
+        return {"error": "No message found"}
+    
+    user_from = message.get("from")
+    if not user_from:
+        return {"error": "No 'from' field in message"}
+    
+    user_id = user_from.get("id")
+    if not user_id:
+        return {"error": "No user ID found"}
+    
+    # Aqui você pode seguir com a lógica para responder ou processar a mensagem
+    text = message.get("text", "")
+    # ... seu processamento e resposta
 
-    message = data["message"]
-    user_id = message["from"]["id"]
-    user_msg = message.get("text", "")
-
-    # Envia o prompt para o Hugging Face
-    response_text = await query_huggingface(user_msg)
-
-    # Envia a resposta para o Telegram
-    await send_message(user_id, response_text)
-
-    return {"ok": True}
+    return {"status": "ok"}
