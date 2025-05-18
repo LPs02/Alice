@@ -5,3 +5,6 @@ python-telegram-bot
 requests
 httpx
 fastapi
+datasets
+accelerate
+peft

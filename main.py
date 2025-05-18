@@ -7,7 +7,7 @@ app = FastAPI()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-HF_API_URL = "https://huggingface.co/spaces/Lps02/Alice-backend"
+HF_API_URL = "https://huggingface.co/Lps02/Alice_finetuned"
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 HF_HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
 

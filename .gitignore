@@ -6,3 +6,7 @@ __pycache__/
 .env
 venv/
 *.sqlite3
+/Alice-rodada3/
+/Alice model/
+/Dataset.jsonl/
+/Alice-teste.py/
