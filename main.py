@@ -17,7 +17,7 @@ if not TELEGRAM_BOT_TOKEN or not HF_API_TOKEN:
     raise RuntimeError("Os tokens do Telegram ou Hugging Face não foram configurados.")
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-HF_API_URL = "https://api-inference.huggingface.co/models/Lps02/Alice_finetuned"
+HF_API_URL = "https://api-inference.huggingface.co/models/Lps02/Alice-model"
 HF_HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
 
 # Consulta ao modelo Hugging Face
