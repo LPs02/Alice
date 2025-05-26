@@ -1,18 +1,40 @@
+# main.py
+
 from fastapi import FastAPI, Request, Response
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import asyncio
 from mensagem import process_input
 
 import logging
 logging.basicConfig(level=logging.INFO)
 
+# Token do bot
 TOKEN = "8129764087:AAFXieX5qd1-pnsafwKcFuFxR08OGh_vLB8"
 
+# FastAPI app
 app = FastAPI()
-bot = Bot(token=TOKEN)
-application = ApplicationBuilder().token(TOKEN).build()
 
+# Telegram bot e application (aplicação assíncrona)
+bot = Bot(token=TOKEN)
+application: Application = ApplicationBuilder().token(TOKEN).build()
+
+# Comando /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Olá! Eu sou a Alice, sua assistente virtual. Como posso ajudar?")
+
+# Mensagens comuns
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.message.from_user.id)
+    user_text = update.message.text
+    response = process_input(user_id, user_text)
+    await update.message.reply_text(response)
+
+# Registrando handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Endpoint do webhook
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.json()
@@ -20,19 +42,7 @@ async def telegram_webhook(request: Request):
     await application.process_update(update)
     return Response(status_code=200)
 
-async def start(update, context):
-    await update.message.reply_text("Olá! Eu sou a Alice, sua assistente virtual. Como posso ajudar?")
-
-async def handle_message(update, context):
-    user_id = str(update.message.from_user.id)
-    user_text = update.message.text
-    response = process_input(user_id, user_text)
-    await update.message.reply_text(response)
-
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-
+# Inicialização do servidor
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
