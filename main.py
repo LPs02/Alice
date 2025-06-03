@@ -3,10 +3,37 @@ from fastapi import FastAPI, Request
 from Neural import ALMA
 from telegram_bot import send_telegram_message
 from MINE import send_minecraft_command
+import requests
+import os
 
 app = FastAPI()
 alice = ALMA()
 alice.load("alice_model.pt")
+
+TELEGRAM_TOKEN = "8129764087:AAFXieX5qd1-pnsafwKcFuFxR08OGh_vLB8"
+TELEGRAM_API_URL = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
+
+def process_message(text):
+    response, action, value = alice(text)
+    return response
+
+@app.post("/webhook")
+async def webhook(request: Request):
+    data = await request.json()
+
+    if "message" in data:
+        chat_id = data['message']['chat']['id']
+        message_text = data['message'].get('text', '')
+
+        response_text = process_message(message_text)
+
+        payload = {
+            'chat_id': chat_id,
+            'text': response_text
+        }
+        requests.post(TELEGRAM_API_URL, json=payload)
+
+    return {"status": "ok"}
 
 @app.post("/interact")
 async def interact(request: Request):
@@ -16,7 +43,6 @@ async def interact(request: Request):
 
     response, action, value = alice(message)
 
-    # Pode reagir conforme a origem da mensagem
     if source == "telegram":
         send_telegram_message(response)
     elif source == "minecraft":
